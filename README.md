@@ -136,22 +136,21 @@ To replace any video or poster:
 
 ## Deployment Instructions
 
-### Deploy to Vercel (Recommended)
+### Deploy to Netlify (Recommended)
 
-1. Push your code to a GitHub repository named `SD AD Works`.
-2. Go to [Vercel](https://vercel.com/) and click **Add New &rarr; Project**.
-3. Import your `SD AD Works` repository.
-4. Vercel automatically detects Vite:
-   - **Framework Preset:** Vite
+1. Connect your repository in [Netlify](https://www.netlify.com/).
+2. Select repository `SD-AD-Works`.
+3. Netlify will auto-detect the configuration from `netlify.toml`:
    - **Build Command:** `npm run build`
-   - **Output Directory:** `dist`
-5. Click **Deploy**. The `vercel.json` file in this repository handles SPA routing automatically.
+   - **Publish Directory:** `dist`
+4. Click **Deploy Site**. The included `netlify.toml` and `public/_redirects` automatically handle single-page application (SPA) routing, asset caching, and security headers.
 
-### Deploy to Netlify
+### Alternative: Deploy to Vercel
 
-1. Link your repository in [Netlify](https://www.netlify.com/).
-2. Set Build command to `npm run build` and Publish directory to `dist`.
-3. Deploy site.
+1. Push your code to your GitHub repository `SD-AD-Works`.
+2. Go to [Vercel](https://vercel.com/) and click **Add New &rarr; Project**.
+3. Import your `SD-AD-Works` repository.
+4. Click **Deploy**. The `vercel.json` file in this repository handles SPA routing automatically.
 
 ---
 
