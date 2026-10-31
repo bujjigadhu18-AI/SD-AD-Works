@@ -17,4 +17,15 @@ export default defineConfig({
       ignored: ['**/*.zip', '**/dist/**', '**/.git/**'],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('@supabase')) {
+            return 'vendor-supabase';
+          }
+        },
+      },
+    },
+  },
 });

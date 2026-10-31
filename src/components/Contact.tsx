@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CONTACT, getWhatsAppUrl, getEmailMailto, generateWhatsAppBrief } from '../config/contact';
-import { MessageSquare, Instagram, Mail, Send, CheckCircle2, ArrowRight, AlertCircle, Copy, Check } from 'lucide-react';
+import { MessageSquare, Instagram, Mail, Send, CheckCircle2, ArrowRight, AlertCircle, Copy, Check, Loader2 } from 'lucide-react';
+import { supabase, isSupabaseConfigured, ClientEnquiryPayload } from '../lib/supabaseClient';
 
 interface ContactProps {
   initialServiceNeed?: string;
@@ -16,6 +17,8 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Update requirement if user picks a service from the cards
@@ -55,13 +58,49 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
     requirement: formData.projectRequirement,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
+    if (!validate()) return;
+
+    setIsLoading(true);
+    setSubmitError(null);
+
+    try {
+      if (!isSupabaseConfigured) {
+        throw new Error(
+          "Supabase credentials are not configured. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.local are set to your live project details."
+        );
+      }
+
+      const payload: ClientEnquiryPayload = {
+        name: formData.name.trim(),
+        business_name: formData.businessName.trim(),
+        business_type: formData.businessType,
+        project_requirement: formData.projectRequirement.trim(),
+      };
+
+      const { error: insertError } = await supabase
+        .from('client_enquiries')
+        .insert([payload]);
+
+      if (insertError) {
+        throw new Error(insertError.message || "Failed to record enquiry in database.");
+      }
+
+      // Show success only after Supabase confirms the insert
       setIsSubmitted(true);
+
       // Automatically open WhatsApp with pre-filled project brief
       const waUrl = getWhatsAppUrl(formattedSummary);
       window.open(waUrl, '_blank', 'noopener,noreferrer');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred while saving your inquiry. Please try again or reach out directly.";
+      setSubmitError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -165,7 +204,7 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
                   Project Brief Ready!
                 </h3>
                 <p className="text-sm text-neutral-300 max-w-md mx-auto">
-                  Your project brief has been compiled. WhatsApp has been opened automatically with your formatted message:
+                  Your enquiry has been recorded in our client database. WhatsApp has also been opened with your formatted project brief:
                 </p>
               </div>
 
@@ -208,7 +247,10 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
               </div>
 
               <button
-                onClick={() => setIsSubmitted(false)}
+                onClick={() => {
+                  setIsSubmitted(false);
+                  setSubmitError(null);
+                }}
                 className="text-xs text-neutral-500 hover:text-neutral-300 underline pt-2 cursor-pointer"
               >
                 &larr; Edit Details
@@ -217,6 +259,28 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               
+              {/* Submission Error Banner */}
+              {submitError && (
+                <div className="p-4 rounded-xl bg-red-950/70 border border-red-500/50 text-red-200 text-xs flex items-start gap-3 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <p className="font-semibold text-white">Database Submission Error</p>
+                    <p className="text-red-300 leading-relaxed">{submitError}</p>
+                    <div className="pt-2 flex flex-wrap items-center gap-3">
+                      <a
+                        href={getWhatsAppUrl(formattedSummary)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-neutral-200 hover:text-white underline font-mono text-[11px] flex items-center gap-1"
+                      >
+                        <MessageSquare className="w-3 h-3 text-[#25D366]" />
+                        <span>Continue directly via WhatsApp &rarr;</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Field 1: Name */}
                 <div>
@@ -225,10 +289,11 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
                   </label>
                   <input
                     type="text"
+                    disabled={isLoading}
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Your Full Name"
-                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 focus:border-[#E10600] text-sm text-white placeholder-neutral-500 focus:outline-none transition-colors"
+                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 focus:border-[#E10600] text-sm text-white placeholder-neutral-500 focus:outline-none transition-colors disabled:opacity-50"
                   />
                   {errors.name && <p className="text-xs text-[#E10600] mt-1">{errors.name}</p>}
                 </div>
@@ -240,10 +305,11 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
                   </label>
                   <input
                     type="text"
+                    disabled={isLoading}
                     value={formData.businessName}
                     onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
                     placeholder="e.g. Luna Café or Brand Name"
-                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 focus:border-[#E10600] text-sm text-white placeholder-neutral-500 focus:outline-none transition-colors"
+                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 focus:border-[#E10600] text-sm text-white placeholder-neutral-500 focus:outline-none transition-colors disabled:opacity-50"
                   />
                   {errors.businessName && <p className="text-xs text-[#E10600] mt-1">{errors.businessName}</p>}
                 </div>
@@ -255,9 +321,10 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
                   Business Type <span className="text-[#E10600]">*</span>
                 </label>
                 <select
+                  disabled={isLoading}
                   value={formData.businessType}
                   onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 focus:border-[#E10600] text-sm text-white focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 focus:border-[#E10600] text-sm text-white focus:outline-none transition-colors disabled:opacity-50"
                 >
                   {businessTypes.map((t) => (
                     <option key={t} value={t} className="bg-neutral-900 text-white">
@@ -274,10 +341,11 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
                 </label>
                 <textarea
                   rows={4}
+                  disabled={isLoading}
                   value={formData.projectRequirement}
                   onChange={(e) => setFormData({ ...formData, projectRequirement: e.target.value })}
                   placeholder="Describe your product, target audience, style preferences, or goals..."
-                  className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 focus:border-[#E10600] text-sm text-white placeholder-neutral-500 focus:outline-none transition-colors resize-none"
+                  className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 focus:border-[#E10600] text-sm text-white placeholder-neutral-500 focus:outline-none transition-colors resize-none disabled:opacity-50"
                 ></textarea>
                 {errors.projectRequirement && <p className="text-xs text-[#E10600] mt-1">{errors.projectRequirement}</p>}
               </div>
@@ -286,10 +354,20 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-4 rounded-xl bg-[#E10600] hover:bg-[#c20500] text-white font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-[0_4px_24px_rgba(225,6,0,0.35)] flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                  disabled={isLoading}
+                  className="w-full py-4 rounded-xl bg-[#E10600] hover:bg-[#c20500] disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-[0_4px_24px_rgba(225,6,0,0.35)] flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                 >
-                  <Send className="w-4 h-4" />
-                  <span>Start Discussion via WhatsApp</span>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Recording Enquiry in Supabase...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Start Discussion via WhatsApp</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -297,7 +375,7 @@ export default function Contact({ initialServiceNeed = "" }: ContactProps) {
               <div className="pt-2 flex items-start gap-2 text-[11px] text-neutral-500 font-mono">
                 <AlertCircle className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
                 <span>
-                  No data is stored on a server. Submitting opens a direct WhatsApp chat with Sai Dinesh.
+                  Enquiry details are safely recorded in our Supabase database and will open an immediate WhatsApp discussion with Sai Dinesh.
                 </span>
               </div>
 
